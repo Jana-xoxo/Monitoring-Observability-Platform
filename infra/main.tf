@@ -89,6 +89,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     admin_username         = var.admin_username
     grafana_admin_user     = var.grafana_admin_user
     grafana_admin_password = var.grafana_admin_password
+    data_disk_lun          = var.data_disk_lun
   }))
 
   admin_ssh_key {
@@ -115,4 +116,27 @@ resource "azurerm_linux_virtual_machine" "main" {
     sku       = "server"
     version   = "latest"
   }
+}
+
+# Metric and dashboard state lives here, not on the OS disk.
+# This is a separate resource, so `terraform apply -replace` on the VM
+# rebuilds the machine and leaves this disk, and its data, untouched.
+resource "azurerm_managed_disk" "data" {
+  name                 = "${var.prefix}-data"
+  location             = azurerm_resource_group.main.location
+  resource_group_name  = azurerm_resource_group.main.name
+  storage_account_type = "StandardSSD_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = var.data_disk_size_gb
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "data" {
+  managed_disk_id    = azurerm_managed_disk.data.id
+  virtual_machine_id = azurerm_linux_virtual_machine.main.id
+  lun                = var.data_disk_lun
+  caching            = "ReadWrite"
 }

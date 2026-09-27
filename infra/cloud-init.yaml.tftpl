@@ -5,6 +5,61 @@ packages:
   - curl
   - git
 write_files:
+  - path: /usr/local/bin/prepare-data-disk.sh
+    permissions: "0755"
+    content: |
+      #!/bin/bash
+      # Prepare the persistent Azure data disk that holds Prometheus and
+      # Grafana state. Runs on every boot and every VM rebuild, so it must
+      # only ever format a disk that has no filesystem on it.
+      set -euo pipefail
+      DEV="/dev/disk/azure/scsi1/lun${data_disk_lun}"
+      MOUNT="/data"
+
+      mkdir -p "$MOUNT"
+
+      # Terraform attaches the disk after the VM is created, so cloud-init can
+      # reach this point before the device exists. Wait, but do not hang forever.
+      for i in $(seq 1 60); do
+        [ -e "$DEV" ] && break
+        echo "waiting for data disk at $DEV ($i/60)"
+        sleep 3
+      done
+
+      if [ ! -e "$DEV" ]; then
+        echo "WARNING: data disk never appeared. Continuing on the OS disk."
+        echo "Metrics will NOT survive a VM rebuild until this is fixed." \
+          > "$MOUNT/.NOT-PERSISTENT"
+      else
+        REAL=$(readlink -f "$DEV")
+        # blkid exits non-zero when there is no filesystem, which is how a
+        # brand new disk looks. That is the only case where we format.
+        if ! blkid "$REAL" >/dev/null 2>&1; then
+          echo "no filesystem on $REAL, formatting once"
+          mkfs.ext4 -F -L p13data "$REAL"
+        else
+          echo "existing filesystem found on $REAL, keeping it"
+        fi
+
+        UUID=$(blkid -s UUID -o value "$REAL")
+        # nofail so a missing disk can never stop the VM from booting.
+        if ! grep -q "$UUID" /etc/fstab; then
+          echo "UUID=$UUID $MOUNT ext4 defaults,nofail 0 2" >> /etc/fstab
+        fi
+        mountpoint -q "$MOUNT" || mount "$MOUNT"
+        rm -f "$MOUNT/.NOT-PERSISTENT"
+      fi
+
+      # Container uids, checked against the images:
+      #   prom/prometheus runs as nobody  65534:65534
+      #   grafana/grafana runs as grafana 472:0
+      mkdir -p "$MOUNT/prometheus" "$MOUNT/grafana"
+      chown 65534:65534 "$MOUNT/prometheus"
+      chown 472:0       "$MOUNT/grafana"
+      chmod 755 "$MOUNT/prometheus" "$MOUNT/grafana"
+
+      echo "data disk ready:"
+      df -h "$MOUNT" | tail -1
   - path: /usr/local/bin/bootstrap-stack.sh
     permissions: "0755"
     content: |
@@ -36,4 +91,5 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   - usermod -aG docker ${admin_username}
+  - /usr/local/bin/prepare-data-disk.sh
   - /usr/local/bin/bootstrap-stack.sh

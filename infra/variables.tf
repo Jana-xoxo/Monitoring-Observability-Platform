@@ -67,3 +67,15 @@ variable "grafana_admin_password" {
   type        = string
   sensitive   = true
 }
+
+variable "data_disk_size_gb" {
+  description = "Size of the persistent data disk that holds Prometheus and Grafana state. Survives VM replacement."
+  type        = number
+  default     = 32
+}
+
+variable "data_disk_lun" {
+  description = "LUN the data disk is attached at. The VM finds it at /dev/disk/azure/scsi1/lun<this>."
+  type        = number
+  default     = 10
+}

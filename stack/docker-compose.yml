@@ -6,7 +6,7 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/rules:/etc/prometheus/rules:ro
-      - prometheus_data:/prometheus
+      - ${DATA_ROOT:-/data}/prometheus:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
@@ -28,7 +28,7 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
+      - ${DATA_ROOT:-/data}/grafana:/var/lib/grafana
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
 
@@ -64,7 +64,3 @@ services:
       - DATA_SOURCE_NAME=${PG_DATA_SOURCE_NAME:-}
     expose:
       - "9187"
-
-volumes:
-  prometheus_data:
-  grafana_data:

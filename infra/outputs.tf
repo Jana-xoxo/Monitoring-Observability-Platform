@@ -15,3 +15,8 @@ output "prometheus_url" {
 output "grafana_url" {
   value = "http://${azurerm_public_ip.main.ip_address}:3000"
 }
+
+output "data_disk_name" {
+  description = "Persistent disk holding Prometheus and Grafana state. Not destroyed when the VM is replaced."
+  value       = azurerm_managed_disk.data.name
+}
