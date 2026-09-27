@@ -18,12 +18,3 @@ scrape_configs:
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
-
-  # Deliberately enabled with no exporter behind it.
-  # This is the standing "down target" we use to demonstrate that detection
-  # and alerting work. InstanceDown is expected to fire on this job, and
-  # health-check.sh is expected to report exactly one FAIL because of it.
-  # To make it real instead: COMPOSE_PROFILES=database docker compose up -d
-  - job_name: postgres_exporter
-    static_configs:
-      - targets: ["postgres_exporter:9187"]

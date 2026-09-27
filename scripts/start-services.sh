@@ -2,7 +2,7 @@
 # Bring the Project 13 stack up. Owned by Rana.
 #
 #   bash scripts/start-services.sh             the normal four services
-#   bash scripts/start-services.sh database    also start postgres_exporter
+#   bash scripts/start-services.sh <profile>   also start services in that Compose profile
 #
 set -euo pipefail
 

@@ -54,13 +54,3 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
     expose:
       - "8080"
-
-  postgres_exporter:
-    image: quay.io/prometheuscommunity/postgres-exporter:latest
-    container_name: postgres_exporter
-    restart: unless-stopped
-    profiles: ["database"]
-    environment:
-      - DATA_SOURCE_NAME=${PG_DATA_SOURCE_NAME:-}
-    expose:
-      - "9187"
