@@ -1,0 +1,110 @@
+# =============================================================================
+# Project 13: Internal Monitoring and Observability Platform
+# Dependencies and libraries required to run this project
+# =============================================================================
+#
+# NOTE ON THIS FILE
+# This project contains no Python application code, so there are no pip
+# packages to install. `pip install -r requirements.txt` runs cleanly and
+# installs nothing, which is correct. The real dependencies are the command
+# line tools below and the four container images that make up the stack.
+#
+# The two Python snippets in the project (scripts/health-check.sh and
+# infra/allow-my-ip.sh) use only the standard library: json, re, sys.
+#
+# Versions listed are the ones this project was built and tested against.
+#
+#
+# -----------------------------------------------------------------------------
+# 1. COMMAND LINE TOOLS, on the machine you run Terraform from
+# -----------------------------------------------------------------------------
+# All four are preinstalled in Azure Cloud Shell.
+#
+#   terraform            >= 1.9.0        tested on 1.16.2
+#   azure-cli            any current     tested on the Cloud Shell build
+#   git                  any current
+#   python3              >= 3.8          standard library only, no pip packages
+#
+#
+# -----------------------------------------------------------------------------
+# 2. TERRAFORM PROVIDER
+# -----------------------------------------------------------------------------
+# Declared in infra/providers.tf, pinned in infra/.terraform.lock.hcl.
+# `terraform init` downloads it. Do not install it by hand.
+#
+#   hashicorp/azurerm    ~> 4.0          resolves to 4.81.0
+#
+# Provider v4 requires subscription_id to be set explicitly, which v3 did not.
+#
+#
+# -----------------------------------------------------------------------------
+# 3. RUNTIME ON THE VIRTUAL MACHINE
+# -----------------------------------------------------------------------------
+# Installed automatically by cloud-init at first boot. Nothing to do by hand.
+#
+#   ubuntu                24.04 LTS      Canonical, ubuntu-24_04-lts, server
+#   docker-ce             >= 24
+#   docker-ce-cli         >= 24
+#   containerd.io         current
+#   docker-compose-plugin v2             Compose file uses v2 syntax
+#
+# Base packages, from infra/cloud-init.yaml.tftpl:
+#
+#   ca-certificates
+#   curl
+#   git
+#
+# Additional packages, from scripts/install-packages.sh:
+#
+#   wget
+#   gnupg
+#   lsb-release
+#   unzip
+#   jq
+#
+#
+# -----------------------------------------------------------------------------
+# 4. CONTAINER IMAGES, the monitoring stack itself
+# -----------------------------------------------------------------------------
+# Declared in stack/docker-compose.yml. `docker compose up -d` pulls them.
+#
+#   prom/prometheus:latest              tested on 3.15.0
+#   grafana/grafana:latest              tested on 13.2.2
+#   prom/node-exporter:latest           tested on 1.12.1
+#   gcr.io/cadvisor/cadvisor:v0.49.1    pinned
+#
+# KNOWN WEAKNESS: three of the four use the `latest` tag, so a rebuild can
+# pull a newer version than the one tested. cAdvisor is pinned because its
+# behaviour changes between releases. Pinning the other three to the versions
+# above is the recommended improvement.
+#
+#
+# -----------------------------------------------------------------------------
+# 5. ACCOUNTS AND ACCESS
+# -----------------------------------------------------------------------------
+#   Microsoft Azure subscription    a free trial is enough
+#   GitHub account                  repository must be PUBLIC, because
+#                                   cloud-init clones it with no credentials
+#   SSH key pair                    ssh-keygen -t rsa -b 4096, no passphrase
+#
+# Azure resource providers that must be registered on the subscription:
+#
+#   Microsoft.Compute
+#   Microsoft.Network
+#   Microsoft.Storage
+#
+#
+# -----------------------------------------------------------------------------
+# 6. VERIFYING WHAT YOU HAVE
+# -----------------------------------------------------------------------------
+#   terraform version
+#   az version
+#   git --version
+#   python3 --version
+#
+# On the VM:
+#
+#   docker --version
+#   docker compose version
+#
+# =============================================================================
