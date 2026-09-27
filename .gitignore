@@ -3,6 +3,8 @@
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.*
+!*.tfvars.example
 tfplan
 plan.txt
 

@@ -1,7 +1,0 @@
-subscription_id        = "84520d62-dbcd-42a5-9ba2-0844bc09e731"
-allowed_source_ips     = ["178.80.173.192"]
-prefix                 = "obs2"
-location               = "westus3"
-vm_size                = "Standard_D2s_v7"
-repo_url               = "https://github.com/adeebs396-eng/project13"
-grafana_admin_password = "@Admin2026"
