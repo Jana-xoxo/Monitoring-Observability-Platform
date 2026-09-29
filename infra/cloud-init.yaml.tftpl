@@ -18,11 +18,13 @@ write_files:
 
       mkdir -p "$MOUNT"
 
-      # Terraform attaches the disk after the VM is created, so cloud-init can
-      # reach this point before the device exists. Wait, but do not hang forever.
-      for i in $(seq 1 60); do
+      # Azure reports the VM as provisioned only once cloud-init exits, and
+      # Terraform will not start the disk attachment until then. A wait loop
+      # inside cloud-init therefore blocks the very attachment it waits for.
+      # That is why this runs from p13-stack.service, started with --no-block.
+      for i in $(seq 1 200); do
         [ -e "$DEV" ] && break
-        echo "waiting for data disk at $DEV ($i/60)"
+        echo "waiting for data disk at $DEV ($i/200)"
         sleep 3
       done
 
@@ -83,6 +85,26 @@ write_files:
       chmod 600 "$HOME_DIR/project13/stack/.env"
       cd "$HOME_DIR/project13/stack"
       docker compose up -d
+  - path: /etc/systemd/system/p13-stack.service
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Project 13 monitoring stack (data disk + docker compose)
+      Requires=docker.service
+      After=docker.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=0
+      ExecStart=/usr/local/bin/prepare-data-disk.sh
+      ExecStart=/usr/local/bin/bootstrap-stack.sh
+      StandardOutput=journal+console
+      StandardError=journal+console
+
+      [Install]
+      WantedBy=multi-user.target
 runcmd:
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -91,5 +113,8 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   - usermod -aG docker ${admin_username}
-  - /usr/local/bin/prepare-data-disk.sh
-  - /usr/local/bin/bootstrap-stack.sh
+  # Detached on purpose. A blocking start holds cloud-init open, Azure never
+  # reports the VM provisioned, and Terraform never attaches the data disk.
+  - systemctl daemon-reload
+  - systemctl enable p13-stack.service
+  - systemctl start --no-block p13-stack.service

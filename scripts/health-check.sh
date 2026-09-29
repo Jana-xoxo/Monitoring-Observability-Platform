@@ -117,6 +117,15 @@ else
     fi
 fi
 
+# 7. Metrics are on the persistent data disk, not the OS disk.
+if [ -f /data/.NOT-PERSISTENT ]; then
+    fail "/data is on the OS disk, metrics will be lost on the next rebuild"
+elif findmnt -n /data >/dev/null 2>&1; then
+    pass "/data mounted from $(findmnt -n -o SOURCE /data)"
+else
+    fail "/data is not a separate mount, metrics will be lost on the next rebuild"
+fi
+
 # Firing alerts are reported, not counted as a failure.
 # The stack is healthy even when it is correctly telling you something is wrong.
 firing=$(curl -sf --max-time 5 "$PROM/api/v1/alerts" 2>/dev/null | python3 -c "
