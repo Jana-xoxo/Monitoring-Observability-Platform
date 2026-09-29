@@ -13,27 +13,43 @@ write_files:
       # Grafana state. Runs on every boot and every VM rebuild, so it must
       # only ever format a disk that has no filesystem on it.
       set -euo pipefail
-      DEV="/dev/disk/azure/scsi1/lun${data_disk_lun}"
+      LUN="${data_disk_lun}"
       MOUNT="/data"
 
       mkdir -p "$MOUNT"
 
-      # Azure reports the VM as provisioned only once cloud-init exits, and
-      # Terraform will not start the disk attachment until then. A wait loop
-      # inside cloud-init therefore blocks the very attachment it waits for.
-      # That is why this runs from p13-stack.service, started with --no-block.
-      for i in $(seq 1 200); do
-        [ -e "$DEV" ] && break
-        echo "waiting for data disk at $DEV ($i/200)"
+      # Azure presents data disks over SCSI on some VM sizes and over NVMe on
+      # others, so neither the device name nor the symlink layout is fixed.
+      # by-lun is what the NVMe-backed sizes get, scsi1 is the older SCSI
+      # layout. Check both, and resolve the symlink to the real device.
+      find_disk() {
+        local c
+        for c in "/dev/disk/azure/data/by-lun/$LUN" \
+                 "/dev/disk/azure/scsi1/lun$LUN"; do
+          if [ -e "$c" ]; then readlink -f "$c"; return 0; fi
+        done
+        return 1
+      }
+
+      not_persistent() {
+        echo "WARNING: $1"
+        echo "Metrics will NOT survive a VM rebuild. $1" > "$MOUNT/.NOT-PERSISTENT"
+      }
+
+      REAL=""
+      for i in $(seq 1 100); do
+        REAL=$(find_disk) && break
+        echo "waiting for data disk at lun $LUN ($i/100)"
         sleep 3
       done
 
-      if [ ! -e "$DEV" ]; then
-        echo "WARNING: data disk never appeared. Continuing on the OS disk."
-        echo "Metrics will NOT survive a VM rebuild until this is fixed." \
-          > "$MOUNT/.NOT-PERSISTENT"
+      if [ -z "$REAL" ]; then
+        # || true because a missing directory makes ls exit non-zero, and
+        # pipefail would otherwise kill the script before the marker is written.
+        ls -l /dev/disk/azure/data/by-lun /dev/disk/azure/scsi1 2>&1 | head -20 || true
+        not_persistent "no data disk at lun $LUN"
       else
-        REAL=$(readlink -f "$DEV")
+        echo "lun $LUN resolves to $REAL"
         # blkid exits non-zero when there is no filesystem, which is how a
         # brand new disk looks. That is the only case where we format.
         if ! blkid "$REAL" >/dev/null 2>&1; then
@@ -48,8 +64,16 @@ write_files:
         if ! grep -q "$UUID" /etc/fstab; then
           echo "UUID=$UUID $MOUNT ext4 defaults,nofail 0 2" >> /etc/fstab
         fi
-        mountpoint -q "$MOUNT" || mount "$MOUNT"
-        rm -f "$MOUNT/.NOT-PERSISTENT"
+
+        # Mount the device directly rather than looking it up in fstab, so
+        # this works on the first boot too. A mount that fails quietly is
+        # what put the metrics on the OS disk unnoticed, so verify it.
+        mountpoint -q "$MOUNT" || mount "$REAL" "$MOUNT" || true
+        if mountpoint -q "$MOUNT"; then
+          rm -f "$MOUNT/.NOT-PERSISTENT"
+        else
+          not_persistent "$REAL exists but $MOUNT could not be mounted"
+        fi
       fi
 
       # Container uids, checked against the images:
