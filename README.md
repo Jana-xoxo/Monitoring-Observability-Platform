@@ -1,4 +1,4 @@
-# Project 13: Internal Monitoring and Observability Platform
+#  Internal Monitoring and Observability Platform
 
 ## 1. Project Summary
 
